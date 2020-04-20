@@ -19,7 +19,7 @@ TARGET_UPDATE = 10
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-ACTIONS = 2
+ACTIONS = 3
 screen_height = 84
 screen_width = 84
 num_episodes = 50
@@ -154,7 +154,7 @@ def main():
             action = select_action(state) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
-            reward,next_state = get_reward()
+            reward,next_state = get_reward(action)
 
             ##########################################
             reward = torch.tensor([reward], device=device)

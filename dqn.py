@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-output_size = 2
+output_size = 3
 
 class DQN(nn.Module):
 
