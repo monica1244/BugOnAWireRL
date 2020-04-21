@@ -1,6 +1,6 @@
 import numpy as np
-# from PIL import ImageGrab
-import pyscreenshot as ImageGrab
+from PIL import ImageGrab
+# import pyscreenshot as ImageGrab
 import cv2
 import time
 from pymouse import PyMouse
