@@ -27,14 +27,18 @@ Transition = namedtuple('Transition',
 N_ACTIONS = 4
 screen_height = 84
 screen_width = 84
-num_episodes = 3
+num_episodes = 500
 episode_durations = []
 res_path = "results/"
+model_checkpoint_path = "model-chk.pt"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
 target_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
+
+# If loading a saved model
+policy_net.load_state_dict(torch.load(model_checkpoint_path))
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
@@ -57,8 +61,12 @@ def plot_durations():
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy())
     if not os.path.exists(res_path):
+        print("doesnt existtt")
         os.makedirs(res_path)
-    plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M%S")))
+    try:
+        plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M%S")))
+    except:
+        print("Unable to save plot")
     # Take 100 episode averages and plot them too
     # if len(durations_t) >= 100:
     #     means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
@@ -121,7 +129,7 @@ def optimize_model():
     optimizer.step()
 
 
-def select_action(state):
+def select_action(state, eps=None):
     """Function for select an action givena state
 
     In this function we select a random sample variable and compare it with epsilon
@@ -130,8 +138,11 @@ def select_action(state):
     """
     global steps_done
     sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        np.exp(-1. * steps_done / EPS_DECAY)
+    if eps is not None:
+        eps_threshold = eps
+    else:
+        eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+            np.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
@@ -142,10 +153,10 @@ def select_action(state):
 
 def main():
     """Main Training Loop"""
+    init_env()
+
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        # init_env()
-
         time.sleep(1)
         state = start_new_game()
 
@@ -154,7 +165,6 @@ def main():
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
             reward, next_state = get_reward_and_next_state(action)
-            # print("frame {}".format(t))
 
             ##########################################
             reward = torch.tensor([reward], device=device)
@@ -173,9 +183,31 @@ def main():
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
+            torch.save(policy_net.state_dict(), model_checkpoint_path)
 
 
-    plot_durations()
+def eval():
+    time.sleep(1)
+    state = start_new_game()
+    with torch.no_grad():
+        for t in count():
+            action = select_action(state, eps=0) # Choose best action
+            ##########################################
+            #TODO Intract with the environment to get the reward and next_state
+            reward, next_state = get_reward_and_next_state(action)
+            # print("frame {}".format(t))
+
+            ##########################################
+            reward = torch.tensor([reward], device=device)
+
+            # Move to the next state
+            state = next_state
+
+            if next_state is None:
+                break
+        print("Eval Duration: {}".format(t))
 
 if __name__ == "__main__":
     main()
+    eval()
+    plot_durations()
