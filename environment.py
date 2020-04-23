@@ -20,7 +20,7 @@ import torch
 
 # Set TOP_LEFT here as per the right pixel by checking mouse position
 # when running this script
-TOP_LEFT = (630, 330)
+TOP_LEFT = (165, 330)
 HEIGHT, WIDTH = 450, 650
 SCREEN = (TOP_LEFT[0], TOP_LEFT[1], TOP_LEFT[0] + WIDTH, TOP_LEFT[1] + HEIGHT)
 BROWN = [88, 52, 20]

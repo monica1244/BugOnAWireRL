@@ -153,7 +153,7 @@ def select_action(state, eps=None):
 
 def main():
     """Main Training Loop"""
-    init_env()
+    # init_env()
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
@@ -161,7 +161,7 @@ def main():
         state = start_new_game()
 
         for t in count():
-            action = select_action(state) # Select and perform an action
+            action = select_action(state, 0) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
             reward, next_state = get_reward_and_next_state(action)
@@ -184,6 +184,9 @@ def main():
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
             torch.save(policy_net.state_dict(), model_checkpoint_path)
+
+
+        print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
 
 
 def eval():
