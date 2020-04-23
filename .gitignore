@@ -1,4 +1,5 @@
 venv/
+results/
 __pycache__/
 .DS_Store
 tests/dummy_samples

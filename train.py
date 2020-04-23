@@ -1,10 +1,13 @@
 import random
+import os
+import time
 import numpy as np
 import torch, torchvision
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
 from collections import namedtuple
+import torch.nn.functional as F
 
 from dqn import DQN
 from replay_memory import ReplayMemory
@@ -24,7 +27,7 @@ Transition = namedtuple('Transition',
 N_ACTIONS = 4
 screen_height = 84
 screen_width = 84
-num_episodes = 50
+num_episodes = 3
 episode_durations = []
 res_path = "results/"
 
@@ -39,7 +42,7 @@ optimizer = optim.RMSprop(policy_net.parameters())
 memory = ReplayMemory(10000)
 
 
-def plot_durations(i_episode):
+def plot_durations():
     """Function to plot and store the durations of each episode
 
     Args: i_episode: episode number used in the image name
@@ -53,7 +56,9 @@ def plot_durations(i_episode):
     plt.xlabel('Episode')
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy())
-    plt.savefig(res_path+"duration_plot_{}.png".format(i_episode))
+    if not os.path.exists(res_path):
+        os.makedirs(res_path)
+    plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M%S")))
     # Take 100 episode averages and plot them too
     # if len(durations_t) >= 100:
     #     means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
@@ -62,6 +67,7 @@ def plot_durations(i_episode):
     #     plt.savefig(res_path+"duration_plot_{}.png".format(i_episode))
 
     plt.pause(0.001)  # pause a bit so that plots are updated
+    time.sleep(1)
 
 def optimize_model():
     """Function for gradient updates
@@ -136,24 +142,19 @@ def select_action(state):
 
 def main():
     """Main Training Loop"""
-    print("Main")
-
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        print("Init env")
-        init_env()
-        print("Init env done")
+        # init_env()
 
+        time.sleep(1)
         state = start_new_game()
-
-        print("First state")
 
         for t in count():
             action = select_action(state) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
             reward, next_state = get_reward_and_next_state(action)
-            print(t)
+            # print("frame {}".format(t))
 
             ##########################################
             reward = torch.tensor([reward], device=device)
@@ -168,11 +169,13 @@ def main():
             optimize_model()
             if next_state is None:
                 episode_durations.append(t + 1)
-                plot_durations(i_episode)
                 break
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
+
+
+    plot_durations()
 
 if __name__ == "__main__":
     main()

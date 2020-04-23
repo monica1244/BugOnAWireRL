@@ -27,6 +27,7 @@ SCREEN = (TOP_LEFT[0], TOP_LEFT[1], TOP_LEFT[0] + WIDTH, TOP_LEFT[1] + HEIGHT)
 BROWN = [88, 52, 20]
 GAME_OVER_PIXEL = (150, 50)
 NEW_GAME_PIXEL = (TOP_LEFT[0] + 325, TOP_LEFT[1] + 345)
+FRAMES = 1
 
 mouse = PyMouse()
 keyboard = PyKeyboard()
@@ -37,19 +38,22 @@ def init_env():
     time.sleep(10)
 
 
-def generate_state(image_arrays, dim=84, frames=1):
-    state = torch.empty(frames, dim, dim)
+def generate_state(image_arrays, dim=84, frames=1, channels=1):
+    state = torch.empty(frames, channels, dim, dim)
     for i, img in enumerate(image_arrays):
         # img = cv2.imread(img) #Add if filepaths are passed
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img,(dim, dim))
-        state[i] = torch.from_numpy(img)
+        state[i] = torch.from_numpy(img).unsqueeze(0)
     return state
 
 def start_new_game():
     mouse.click(NEW_GAME_PIXEL[0], NEW_GAME_PIXEL[1], 1)
-    state = generate_state([np.array(ImageGrab.grab(bbox=SCREEN))])
-    return state
+    image_arrays = []
+    for _ in range(FRAMES):
+        image_arrays.append(np.array(ImageGrab.grab(bbox=SCREEN)))
+        time.sleep(0.1)
+    return generate_state(image_arrays)
 
 def is_game_over(frame):
     '''
@@ -92,7 +96,11 @@ def get_reward_and_next_state(action):
         state = None
         reward = -1
     else:
-        state = generate_state([state])
+        image_arrays = []
+        for _ in range(FRAMES):
+            image_arrays.append(np.array(ImageGrab.grab(bbox=SCREEN)))
+            time.sleep(0.1)
+        state = generate_state(image_arrays)
     return reward, state
 
 
