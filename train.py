@@ -4,6 +4,7 @@ import torch, torchvision
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
+from collections import namedtuple
 
 from dqn import DQN
 from replay_memory import ReplayMemory
@@ -19,7 +20,8 @@ TARGET_UPDATE = 10
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-ACTIONS = 3
+# 4 Actions: Nothing, UP, LEFT, RIGHT
+N_ACTIONS = 4
 screen_height = 84
 screen_width = 84
 num_episodes = 50
@@ -28,8 +30,8 @@ res_path = "results/"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-policy_net = DQN(screen_height, screen_width, ACTIONS).to(device)
-target_net = DQN(screen_height, screen_width, n_actions).to(device)
+policy_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
+target_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
@@ -123,30 +125,35 @@ def select_action(state):
     global steps_done
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
+        np.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
             return policy_net(state).max(1)[1].view(1, 1)
     else:
-        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
+        return torch.tensor([[random.randrange(N_ACTIONS)]], device=device, dtype=torch.long)
 
 
 def main():
     """Main Training Loop"""
-
+    print("Main")
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
+        print("Init env")
         init_env()
+        print("Init env done")
 
         state = start_new_game()
+
+        print("First state")
 
         for t in count():
             action = select_action(state) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
             reward, next_state = get_reward_and_next_state(action)
+            print(t)
 
             ##########################################
             reward = torch.tensor([reward], device=device)
@@ -159,7 +166,7 @@ def main():
 
             # Perform one step of the optimization (on the target network)
             optimize_model()
-            if not next_state:
+            if next_state is None:
                 episode_durations.append(t + 1)
                 plot_durations(i_episode)
                 break

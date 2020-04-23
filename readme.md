@@ -4,20 +4,24 @@
 [Link to miniclip](https://www.miniclip.com/games/bug-on-a-wire/en/)
 
 
-### frames.py
-Samples frames and displays them as is from a selected bounding box. Gets 4 fps around now.
-Open the swf link from above and _restore_ firefox to small size and position at top left. May need resizing as per resolution/screen/environment.
-Run frames.py and move the new window generated to the right.
+### environment.py
+Handles the interfacing with the flash game environment.
+Just running `python environment.py` shows the frames as they are sampled.
 
 ### main.py
 Currently a hardcoded agent that just plays with right, left and always jumps after a point.
 
-### ocr_main.py
-Different bounding boxes to get the score. Also does white filtering to get only the text as white on black background. Need to run OCR on this to convert to integer score.
-
 ### Setup for Windows
 Windows, because better frame rate.
 
-Use Python 3.6
+Use conda because pytorch support outside conda is poor.
+
+Init conda for powershell- `conda init powershell`.
+
+Create a conda environment- `conda create --name conda_env`.
+
+Activate the environment- `conda activate conda_env`.
 
 Install all packages using `pip install -r requirements.txt`.
+
+Install pytorch using conda- `conda install pytorch torchvision cudatoolkit=10.2 -c pytorch`.
