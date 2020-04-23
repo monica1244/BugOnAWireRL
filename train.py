@@ -1,6 +1,6 @@
 import random
 import numpy as np
-import torch,torchvision
+import torch, torchvision
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
@@ -8,7 +8,7 @@ from itertools import count
 from dqn import DQN
 from replay_memory import ReplayMemory
 
-
+from environment import init_env, start_new_game, get_reward_and_next_state
 
 BATCH_SIZE = 128
 GAMMA = 0.999
@@ -138,23 +138,15 @@ def main():
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        #Check if the game is on and when it's on get the current state
-        while(1):
-            if is_game_on(): #TODO
-                ##########################################
-                #TODO: Get the state
-                #state = get_state
+        init_env()
 
-                ##########################################
-                break
-            else:
-                pass
+        state = start_new_game()
 
         for t in count():
             action = select_action(state) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
-            reward,next_state = get_reward(action)
+            reward, next_state = get_reward_and_next_state(action)
 
             ##########################################
             reward = torch.tensor([reward], device=device)

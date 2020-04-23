@@ -15,3 +15,9 @@ Currently a hardcoded agent that just plays with right, left and always jumps af
 ### ocr_main.py
 Different bounding boxes to get the score. Also does white filtering to get only the text as white on black background. Need to run OCR on this to convert to integer score.
 
+### Setup for Windows
+Windows, because better frame rate.
+
+Use Python 3.6
+
+Install all packages using `pip install -r requirements.txt`.
