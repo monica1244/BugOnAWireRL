@@ -27,6 +27,9 @@ BROWN = [88, 52, 20]
 GAME_OVER_PIXEL = (150, 50)
 NEW_GAME_PIXEL = (TOP_LEFT[0] + 325, TOP_LEFT[1] + 345)
 FRAMES = 1
+# 4 Actions: Nothing, UP, LEFT, RIGHT
+N_ACTIONS = 4
+RESOLUTION = 256
 
 mouse = PyMouse()
 keyboard = PyKeyboard()
@@ -38,7 +41,7 @@ def init_env():
     os.chdir(r"C:\Users\nihal\github\bugOnAWireRL")
 
 
-def generate_state(image_arrays, dim=256, frames=1, channels=1):
+def generate_state(image_arrays, dim=RESOLUTION, frames=1, channels=1):
     state = torch.empty(frames, channels, dim, dim)
     for i, img in enumerate(image_arrays):
         # img = cv2.imread(img) #Add if filepaths are passed

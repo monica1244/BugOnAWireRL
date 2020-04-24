@@ -13,7 +13,7 @@ from dqn import DQN
 from replay_memory import ReplayMemory
 import cv2
 
-from environment import init_env, start_new_game, get_reward_and_next_state
+from environment import init_env, start_new_game, get_reward_and_next_state,N_ACTIONS,RESOLUTION
 
 BATCH_SIZE = 128
 GAMMA = 0.999
@@ -24,10 +24,7 @@ TARGET_UPDATE = 10
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-# 4 Actions: Nothing, UP, LEFT, RIGHT
-N_ACTIONS = 4
-screen_height = 256
-screen_width = 256
+
 num_episodes = 500
 episode_durations = []
 res_path = "results/"
@@ -35,8 +32,8 @@ model_checkpoint_path = "model-chk.pt"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-policy_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
-target_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
+policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
+target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
 # If loading a saved model
 # policy_net.load_state_dict(torch.load(model_checkpoint_path))

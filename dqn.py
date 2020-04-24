@@ -16,18 +16,19 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+from environment import N_ACTIONS as output_size
 
-output_size = 3
+
 
 class DQN(nn.Module):
 
     def __init__(self, h, w, output_size):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=8, stride=4)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=16, stride=4)
         self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=8, stride=4)
         self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=1)
         self.bn3 = nn.BatchNorm2d(128)
         self.conv4 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
         self.bn4 = nn.BatchNorm2d(128)
@@ -37,8 +38,8 @@ class DQN(nn.Module):
         # and therefore the input image size, so compute it.
         def conv2d_size_out(size, kernel_size = 5, stride = 2):
             return (size - (kernel_size - 1) - 1) // stride  + 1
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(w, 8, 4), 4, 2), 3, 1), 3, 1)
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(h, 8, 4), 4, 2), 3, 1), 3, 1)
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(w, 16, 4), 8, 4), 4, 1), 3, 1)
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(h, 16, 4), 8, 4), 4, 1), 3, 1)
         linear_input_size = convw * convh * 128
         self.fc1 = nn.Linear(linear_input_size, 512)
         self.fc2 = nn.Linear(512, output_size)
