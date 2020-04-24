@@ -95,14 +95,16 @@ def get_reward_and_next_state(action):
     reward = 1
     if is_game_over(state):
         state = None
+        frame = None
         reward = 0
     else:
         image_arrays = []
         for _ in range(FRAMES):
-            image_arrays.append(np.array(ImageGrab.grab(bbox=SCREEN)))
-            time.sleep(0.1)
+            frame = np.array(ImageGrab.grab(bbox=SCREEN))
+            image_arrays.append(frame)
+            time.sleep(0.2)
         state = generate_state(image_arrays)
-    return reward, state
+    return reward, state, frame
 
 
 def screen_record():

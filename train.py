@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 from dqn import DQN
 from replay_memory import ReplayMemory
+import cv2
 
 from environment import init_env, start_new_game, get_reward_and_next_state
 
@@ -149,6 +150,7 @@ def select_action(state, eps=None):
             return policy_net(state).max(1)[1].view(1, 1)
     else:
         return torch.tensor([[random.randrange(N_ACTIONS)]], device=device, dtype=torch.long)
+        # return torch.tensor([[3]], device=device, dtype=torch.long)
 
 
 def main():
@@ -160,11 +162,17 @@ def main():
         time.sleep(1)
         state = start_new_game()
 
+        last_time = time.time()
+        old_frame, next_frame = None, None
+        print("Game Start Time: {}".format(last_time))
         for t in count():
+            print("t:{} time:{}".format(t, time.time() - last_time))
+            last_time = time.time()
             action = select_action(state, 0) # Select and perform an action
             ##########################################
             #TODO Intract with the environment to get the reward and next_state
-            reward, next_state = get_reward_and_next_state(action)
+            old_frame = next_frame
+            reward, next_state, next_frame = get_reward_and_next_state(action)
 
             ##########################################
             reward = torch.tensor([reward], device=device)
@@ -180,10 +188,21 @@ def main():
             if next_state is None:
                 episode_durations.append(t + 1)
                 break
+            else:
+                if t > 20 and action == 3:
+                    print("Action: {}".format(action))
+                    cv2.imshow('old_frame', old_frame)
+                    cv2.imshow('next_frame', next_frame)
+                    cv2.waitKey(0)
+
+                    break
+
+
+
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            torch.save(policy_net.state_dict(), model_checkpoint_path)
+            # torch.save(policy_net.state_dict(), model_checkpoint_path)
 
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
