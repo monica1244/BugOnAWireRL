@@ -26,8 +26,8 @@ Transition = namedtuple('Transition',
 
 # 4 Actions: Nothing, UP, LEFT, RIGHT
 N_ACTIONS = 4
-screen_height = 84
-screen_width = 84
+screen_height = 256
+screen_width = 256
 num_episodes = 500
 episode_durations = []
 res_path = "results/"
@@ -39,7 +39,7 @@ policy_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
 target_net = DQN(screen_height, screen_width, N_ACTIONS).to(device)
 
 # If loading a saved model
-policy_net.load_state_dict(torch.load(model_checkpoint_path))
+# policy_net.load_state_dict(torch.load(model_checkpoint_path))
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
@@ -188,14 +188,14 @@ def main():
             if next_state is None:
                 episode_durations.append(t + 1)
                 break
-            else:
-                if t > 20 and action == 3:
-                    print("Action: {}".format(action))
-                    cv2.imshow('old_frame', old_frame)
-                    cv2.imshow('next_frame', next_frame)
-                    cv2.waitKey(0)
-
-                    break
+            # else:
+            #     if t > 20 and action == 3:
+            #         print("Action: {}".format(action))
+            #         cv2.imshow('old_frame', old_frame)
+            #         cv2.imshow('next_frame', next_frame)
+            #         cv2.waitKey(0)
+            #
+            #         break
 
 
 
