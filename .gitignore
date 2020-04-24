@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 tests/dummy_samples
 model-chk.pt
+model-dqfd-chk.pt
+replay-dqfd.pkl

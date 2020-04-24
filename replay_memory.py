@@ -24,3 +24,9 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
+
+    def get_memory(self):
+        return self.memory
+
+    def set_memory(self, memory):
+        self.memory = memory

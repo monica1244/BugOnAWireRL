@@ -15,8 +15,9 @@ from pymouse import PyMouse
 from pykeyboard import PyKeyboard
 
 import os
-
 import torch
+from getkeys import key_check
+
 
 # Set TOP_LEFT here as per the right pixel by checking mouse position
 # when running this script
@@ -44,12 +45,11 @@ def init_env():
 def generate_state(image_arrays, dim=RESOLUTION, frames=1, channels=1):
     state = torch.empty(frames, channels, dim, dim)
     for i, img in enumerate(image_arrays):
-        # img = cv2.imread(img) #Add if filepaths are passed
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img = cv2.resize(img,(dim, dim))
-        if np.random.random_sample() > 0.9:
-            cv2.imshow('img', img)
-            cv2.waitKey(0)
+        # if np.random.random_sample() > 0.9:
+        #     cv2.imshow('img', img)
+        #     cv2.waitKey(0)
         state[i] = torch.from_numpy(img).unsqueeze(0)
     return state
 
@@ -114,6 +114,27 @@ def get_reward_and_next_state(action):
             image_arrays.append(frame_diff)
         state = generate_state(image_arrays)
     return reward, state, frame_diff
+
+
+def get_action_reward_and_next_state():
+    action = key_check()
+    state = np.array(ImageGrab.grab(bbox=SCREEN))
+    reward = 1
+    if is_game_over(state):
+        state = None
+        frame_diff = None
+        reward = 0
+    else:
+        image_arrays = []
+        for _ in range(FRAMES):
+            frame_i = np.array(ImageGrab.grab(bbox=SCREEN))
+            time.sleep(0.2)
+            # frame_f = np.array(ImageGrab.grab(bbox=SCREEN))
+            # frame_diff = np.absolute(frame_f - frame_i)
+            frame_diff = frame_i
+            image_arrays.append(frame_diff)
+        state = generate_state(image_arrays)
+    return action, reward, state
 
 
 def screen_record():

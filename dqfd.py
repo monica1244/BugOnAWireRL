@@ -12,15 +12,17 @@ import torch.nn.functional as F
 from dqn import DQN
 from replay_memory import ReplayMemory
 import cv2
+import pickle
 
-from environment import init_env, start_new_game, get_reward_and_next_state,N_ACTIONS,RESOLUTION
+from environment import init_env, start_new_game, get_reward_and_next_state,\
+    N_ACTIONS, RESOLUTION, get_action_reward_and_next_state
 
 BATCH_SIZE = 128
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 200
-TARGET_UPDATE = 10
+TARGET_UPDATE = 2
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -28,20 +30,24 @@ Transition = namedtuple('Transition',
 num_episodes = 500
 episode_durations = []
 res_path = "results/"
-model_checkpoint_path = "model-chk.pt"
+model_checkpoint_path = "model-dqfd-chk.pt"
+replay_buffer_path = "replay-dqfd.pkl"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
-# If loading a saved model
-# policy_net.load_state_dict(torch.load(model_checkpoint_path))
-target_net.load_state_dict(policy_net.state_dict())
-target_net.eval()
-
 optimizer = optim.RMSprop(policy_net.parameters())
 memory = ReplayMemory(10000)
+
+# If loading a saved model
+policy_net.load_state_dict(torch.load(model_checkpoint_path))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
+
+target_net.load_state_dict(policy_net.state_dict())
+target_net.eval()
 
 
 def plot_durations():
@@ -160,17 +166,11 @@ def main():
         state = start_new_game()
 
         last_time = time.time()
-        old_frame, next_frame = None, None
         print("Game Start Time: {}".format(last_time))
         for t in count():
-            print("t:{} time:{}".format(t, time.time() - last_time))
             last_time = time.time()
-            action = select_action(state) # Select and perform an action
-            ##########################################
-            #TODO Intract with the environment to get the reward and next_state
-            old_frame = next_frame
-            reward, next_state, next_frame = get_reward_and_next_state(action)
-
+            action, reward, next_state = get_action_reward_and_next_state()
+            print("t:{} time:{:.2f} action:{}".format(t, time.time() - last_time, action))
             ##########################################
             reward = torch.tensor([reward], device=device)
 
@@ -181,25 +181,18 @@ def main():
             state = next_state
 
             # Perform one step of the optimization (on the target network)
-            optimize_model()
+            # optimize_model()
             if next_state is None:
                 episode_durations.append(t + 1)
                 break
-            # else:
-            #     if t > 20 and action == 3:
-            #         print("Action: {}".format(action))
-            #         cv2.imshow('old_frame', old_frame)
-            #         cv2.imshow('next_frame', next_frame)
-            #         cv2.waitKey(0)
-            #
-            #         break
-
 
 
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            # torch.save(policy_net.state_dict(), model_checkpoint_path)
+            torch.save(policy_net.state_dict(), model_checkpoint_path)
+            with open(replay_buffer_path, 'wb') as output:
+                pickle.dump(memory.get_memory(), output)
 
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
