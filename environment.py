@@ -116,11 +116,11 @@ def get_reward_and_next_state(action):
         raise Exception
 
     state = np.array(ImageGrab.grab(bbox=SCREEN))
-    reward = sum(get_crows_positions(state))*100
+    reward = sum(get_crows_positions(state)) * 1
     if is_game_over(state):
         state = None
         frame_diff = None
-        reward = -100
+        reward = -5
     else:
         image_arrays = []
         for _ in range(FRAMES):
@@ -137,11 +137,11 @@ def get_reward_and_next_state(action):
 def get_action_reward_and_next_state():
     action = key_check()
     state = np.array(ImageGrab.grab(bbox=SCREEN))
-    reward = sum(get_crows_positions(state))*100
+    reward = sum(get_crows_positions(state)) * 1
     if is_game_over(state):
         state = None
         frame_diff = None
-        reward = -100
+        reward = -5
     else:
         image_arrays = []
         for _ in range(FRAMES):

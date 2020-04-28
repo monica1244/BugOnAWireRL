@@ -13,15 +13,19 @@ from dqn import DQN
 from replay_memory import ReplayMemory
 import cv2
 import pickle
+import signal
 
 from environment import init_env, start_new_game, get_reward_and_next_state,N_ACTIONS,RESOLUTION
 
-BATCH_SIZE = 256
+np.random.seed(111)
+torch.manual_seed(111)
+
+BATCH_SIZE = 512
 TRAIN_ITERATIONS = 100
 LEARNING_RATE = 1e-4
 GAMMA = 0.999
-EPS_START = 0.5
-EPS_END = 0.1
+EPS_START = 0.25
+EPS_END = 0.05
 EPS_DECAY = 100
 TARGET_UPDATE = 1
 SAVE_MODEL = 10
@@ -43,15 +47,24 @@ target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 memory = ReplayMemory(50000)
 
 # If loading a saved model
-print("Loading Model and Replay buffer")
-if os.path.exists(model_checkpoint_path):
-    policy_net.load_state_dict(torch.load(model_checkpoint_path))
-with open(replay_buffer_path, 'rb') as input:
-    memory.set_memory(pickle.load(input))
+# print("Loading Model and Replay buffer")
+# if os.path.exists(model_checkpoint_path):
+#     policy_net.load_state_dict(torch.load(model_checkpoint_path))
+# with open(replay_buffer_path, 'rb') as input:
+#     memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
+
+
+def keyboardInterruptHandler(signal, frame):
+    print("KeyboardInterrupt has been caught. Saving plot...")
+    plot_durations()
+    exit(0)
+
+
+signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 
 def plot_durations():
@@ -94,7 +107,7 @@ def optimize_model():
 
     """
     if len(memory) < BATCH_SIZE:
-        return
+        return 0
     transitions = memory.sample(BATCH_SIZE)
     # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
     # detailed explanation). This converts batch-array of Transitions
@@ -170,6 +183,7 @@ def main():
         # Initialize the environment and state
         time.sleep(1)
         state = start_new_game()
+        time.sleep(0.2)
 
         last_time = time.time()
         print("Game Start Time: {}".format(last_time))
