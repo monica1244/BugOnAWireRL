@@ -22,13 +22,14 @@ torch.manual_seed(111)
 
 BATCH_SIZE = 512
 TRAIN_ITERATIONS = 100
+DQFD_TRAIN_ITERATIONS = 100
 LEARNING_RATE = 1e-4
 GAMMA = 0.999
-EPS_START = 0.25
+EPS_START = 0.1
 EPS_END = 0.05
-EPS_DECAY = 100
+EPS_DECAY = 200
 TARGET_UPDATE = 1
-SAVE_MODEL = 10
+SAVE_MODEL = 20
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -38,20 +39,24 @@ episode_durations = []
 res_path = "results/"
 model_checkpoint_path = "model-egreedy-chk.pt"
 replay_buffer_path = "replay-egreedy.pkl"
+dqfd_replay_buffer_path = "replay-dqfd.pkl"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
-memory = ReplayMemory(50000)
+memory = ReplayMemory(10000)
+dqfd_memory = ReplayMemory(10000)
 
 # If loading a saved model
-# print("Loading Model and Replay buffer")
-# if os.path.exists(model_checkpoint_path):
-#     policy_net.load_state_dict(torch.load(model_checkpoint_path))
-# with open(replay_buffer_path, 'rb') as input:
-#     memory.set_memory(pickle.load(input))
+print("Loading Model and Replay buffer")
+if os.path.exists(model_checkpoint_path):
+    policy_net.load_state_dict(torch.load(model_checkpoint_path))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
+with open(dqfd_replay_buffer_path, 'rb') as input:
+    dqfd_memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
@@ -98,7 +103,7 @@ def plot_durations():
     plt.pause(0.001)  # pause a bit so that plots are updated
     time.sleep(1)
 
-def optimize_model():
+def optimize_model(memory):
     """Function for gradient updates
 
     In this function we sample from memory(ReplayMemory), use the policy_net to
@@ -181,12 +186,12 @@ def main():
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        time.sleep(1)
+        time.sleep(2)
         state = start_new_game()
-        time.sleep(0.2)
+        time.sleep(2)
 
         last_time = time.time()
-        print("Game Start Time: {}".format(last_time))
+        print("Game Start Time: {}".format(time.strftime("%Y/%m/%d-%H:%M:%S")))
         for t in count():
             last_time = time.time()
             action, network_action = select_action(state)
@@ -200,8 +205,8 @@ def main():
             # if reward > 1:
             #     print("REWARD -- {}".format(reward))
             # Store the transition in memory
-            # only if frame number > 60, don't consider empty frames
-            if t > 60:
+            # don't consider initial frames
+            if t > 40:
                 memory.push(state,
                     action,
                     next_state,
@@ -235,18 +240,26 @@ def main():
         print("Optimizing model")
         global steps_done
         steps_done += 1
-        optim_time = time.time()
 
+        optim_time = time.time()
+        loss = 0
+        for _ in range(DQFD_TRAIN_ITERATIONS):
+            loss += optimize_model(dqfd_memory)
+        print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
+            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
+
+        optim_time = time.time()
         loss = 0
         for _ in range(TRAIN_ITERATIONS):
-            loss += optimize_model()
-        print("BATCH_SIZE:{} TRAIN_ITERATIONS:{} Optimization time:{:.2f} Avg Loss:{:.2f}".format(
+            loss += optimize_model(memory)
+        print("eGREEDY\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
             BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
 
 
 def eval():
-    time.sleep(1)
+    time.sleep(2)
     state = start_new_game()
+    time.sleep(2)
     with torch.no_grad():
         last_time = time.time()
         for t in count():

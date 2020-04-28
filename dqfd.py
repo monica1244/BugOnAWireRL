@@ -17,9 +17,9 @@ import pickle
 from environment import init_env, start_new_game, get_reward_and_next_state,\
     N_ACTIONS, RESOLUTION, get_action_reward_and_next_state
 
-BATCH_SIZE = 128
+BATCH_SIZE = 512
 TRAIN_ITERATIONS = 1000
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-7
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
@@ -27,7 +27,7 @@ EPS_DECAY = 200
 TARGET_UPDATE = 10
 
 
-num_episodes = 10
+num_episodes = 20
 episode_durations = []
 res_path = "results/"
 model_checkpoint_path = "model-egreedy-chk.pt"
@@ -254,7 +254,7 @@ def learn(N=100):
 
 
 if __name__ == "__main__":
-    # collect_train_data()
+    collect_train_data()
     # action_unskew()
     # learn(N=TRAIN_ITERATIONS)
-    eval()
+    # eval()
