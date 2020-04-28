@@ -27,7 +27,7 @@ EPS_DECAY = 200
 TARGET_UPDATE = 10
 
 
-num_episodes = 20
+num_episodes = 10
 episode_durations = []
 res_path = "results/"
 model_checkpoint_path = "model-egreedy-chk.pt"
@@ -41,10 +41,10 @@ target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 memory = ReplayMemory(30000)
 
 # If loading a saved model
-# print("Loading old model and memory buffer")
-# policy_net.load_state_dict(torch.load(model_checkpoint_path))
-# with open(replay_buffer_path, 'rb') as input:
-#     memory.set_memory(pickle.load(input))
+print("Loading old model and memory buffer")
+policy_net.load_state_dict(torch.load(model_checkpoint_path))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
@@ -175,13 +175,15 @@ def collect_train_data():
             last_time = time.time()
             action, reward, next_state = get_action_reward_and_next_state()
 
-            print("t:{} time:{:.2f} reward:{} action:{}".format(t, time.time() - last_time, reward, action))
+            print("t:{}\t time:{:.2f}\t reward:{}\t action:{}".format(t, time.time() - last_time, reward, action))
 
             # Store the transition in memory
-            memory.push(state,
-                action,
-                next_state,
-                reward)
+            # only if frame number > 60, don't consider empty frames
+            if t > 60:
+                memory.push(state,
+                    action,
+                    next_state,
+                    reward)
 
             # Move to the next state
             state = next_state
@@ -244,7 +246,7 @@ def learn(N=100):
         print("Optimizing model")
         for i in range(N):
             loss += optimize_model()
-            print("{}/{} Avg Loss: {}".format(i, N, loss/(i + 1)))
+            print("{}/{} Avg Loss: {:.2f}".format(i, N, loss/(i + 1)))
             if i % TARGET_UPDATE == 0:
                 target_net.load_state_dict(policy_net.state_dict())
                 torch.save(policy_net.state_dict(), model_checkpoint_path)
@@ -252,7 +254,7 @@ def learn(N=100):
 
 
 if __name__ == "__main__":
-    collect_train_data()
+    # collect_train_data()
     # action_unskew()
     # learn(N=TRAIN_ITERATIONS)
-    # eval()
+    eval()

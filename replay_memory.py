@@ -35,13 +35,4 @@ class ReplayMemory(object):
         self.position = 0
         for i in range(len(memory)):
             if memory[i] is not None:
-                t = memory[i]
-                if isinstance(t.state, numpy.ndarray):
-                    self.push(*t)
-                    continue
-                n_s = torch.Tensor.cpu(t.next_state).detach().numpy() if t.next_state is not None else None
-                self.push(torch.Tensor.cpu(t.state).detach().numpy(),
-                    torch.Tensor.cpu(t.action).detach().numpy(),
-                    n_s,
-                    torch.Tensor.cpu(t.reward).detach().numpy())
-        self.position = len(self.memory) % self.capacity
+                self.push(*memory[i])

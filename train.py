@@ -186,8 +186,8 @@ def main():
             # if reward > 1:
             #     print("REWARD -- {}".format(reward))
             # Store the transition in memory
-            # only if frame number > 50, don't consider empty frames
-            if t > 50:
+            # only if frame number > 60, don't consider empty frames
+            if t > 60:
                 memory.push(state,
                     action,
                     next_state,
