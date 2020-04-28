@@ -24,23 +24,21 @@ class DQN(nn.Module):
 
     def __init__(self, h, w, output_size):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=16, stride=4)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
         self.bn1 = nn.BatchNorm2d(32)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=1)
-        self.bn3 = nn.BatchNorm2d(128)
-        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
-        self.bn4 = nn.BatchNorm2d(128)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.bn3 = nn.BatchNorm2d(64)
 
 
         # Number of Linear input connections depends on output of conv2d layers
         # and therefore the input image size, so compute it.
         def conv2d_size_out(size, kernel_size = 5, stride = 2):
             return (size - (kernel_size - 1) - 1) // stride  + 1
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(w, 16, 4), 8, 4), 4, 1), 3, 1)
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(conv2d_size_out(h, 16, 4), 8, 4), 4, 1), 3, 1)
-        linear_input_size = convw * convh * 128
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w, 8, 4), 4, 2), 3, 1)
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h, 8, 4), 4, 2), 3, 1)
+        linear_input_size = convw * convh * 64
         self.fc1 = nn.Linear(linear_input_size, 512)
         self.fc2 = nn.Linear(512, output_size)
 
@@ -50,5 +48,4 @@ class DQN(nn.Module):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        x = F.relu(self.bn4(self.conv4(x)))
-        return self.fc2(self.fc1(x.view(x.size(0), -1)))
+        return self.fc2(F.relu(self.fc1(x.view(x.size(0), -1))))

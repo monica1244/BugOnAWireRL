@@ -12,15 +12,19 @@ import torch.nn.functional as F
 from dqn import DQN
 from replay_memory import ReplayMemory
 import cv2
+import pickle
 
 from environment import init_env, start_new_game, get_reward_and_next_state,N_ACTIONS,RESOLUTION
 
-BATCH_SIZE = 128
+BATCH_SIZE = 256
+TRAIN_ITERATIONS = 100
+LEARNING_RATE = 1e-4
 GAMMA = 0.999
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
-TARGET_UPDATE = 10
+EPS_START = 0.5
+EPS_END = 0.1
+EPS_DECAY = 100
+TARGET_UPDATE = 1
+SAVE_MODEL = 10
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -28,20 +32,26 @@ Transition = namedtuple('Transition',
 num_episodes = 500
 episode_durations = []
 res_path = "results/"
-model_checkpoint_path = "model-chk.pt"
+model_checkpoint_path = "model-egreedy-chk.pt"
+replay_buffer_path = "replay-egreedy.pkl"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
+memory = ReplayMemory(50000)
+
 # If loading a saved model
-# policy_net.load_state_dict(torch.load(model_checkpoint_path))
+print("Loading Model and Replay buffer")
+if os.path.exists(model_checkpoint_path):
+    policy_net.load_state_dict(torch.load(model_checkpoint_path))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
+
+optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
-
-optimizer = optim.RMSprop(policy_net.parameters())
-memory = ReplayMemory(10000)
 
 
 def plot_durations():
@@ -95,11 +105,11 @@ def optimize_model():
     # (a final state would've been the one after which simulation ended)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                                if s is not None])
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    non_final_next_states = torch.cat([torch.Tensor(s) for s in batch.next_state
+                                                if s is not None]).to(device)
+    state_batch = torch.cat([torch.Tensor(s) for s in batch.state]).to(device)
+    action_batch = torch.cat([torch.LongTensor([[s]]) for s in batch.action]).to(device)
+    reward_batch = torch.cat([torch.Tensor([s]) for s in batch.reward]).to(device)
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
@@ -125,6 +135,7 @@ def optimize_model():
     for param in policy_net.parameters():
         param.grad.data.clamp_(-1, 1)
     optimizer.step()
+    return loss.item()
 
 
 def select_action(state, eps=None):
@@ -141,13 +152,14 @@ def select_action(state, eps=None):
     else:
         eps_threshold = EPS_END + (EPS_START - EPS_END) * \
             np.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            return policy_net(state).max(1)[1].view(1, 1)
+            state = torch.FloatTensor(state)
+            action = policy_net(state.to(device)).max(1)[1].view(1, 1).item()
+            return action, (sample, eps_threshold)
     else:
-        return torch.tensor([[random.randrange(N_ACTIONS)]], device=device, dtype=torch.long)
-        # return torch.tensor([[3]], device=device, dtype=torch.long)
+        action = random.randrange(N_ACTIONS)
+        return action, None
 
 
 def main():
@@ -160,64 +172,74 @@ def main():
         state = start_new_game()
 
         last_time = time.time()
-        old_frame, next_frame = None, None
         print("Game Start Time: {}".format(last_time))
         for t in count():
-            print("t:{} time:{}".format(t, time.time() - last_time))
             last_time = time.time()
-            action = select_action(state) # Select and perform an action
-            ##########################################
-            #TODO Intract with the environment to get the reward and next_state
-            old_frame = next_frame
-            reward, next_state, next_frame = get_reward_and_next_state(action)
+            action, network_action = select_action(state)
 
-            ##########################################
-            reward = torch.tensor([reward], device=device)
+            reward, next_state = get_reward_and_next_state(action)
 
+            if network_action is not None:
+                print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
+            else:
+                print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t".format(t, time.time() - last_time, reward, action))
+            # if reward > 1:
+            #     print("REWARD -- {}".format(reward))
             # Store the transition in memory
-            memory.push(state, action, next_state, reward)
+            # only if frame number > 50, don't consider empty frames
+            if t > 50:
+                memory.push(state,
+                    action,
+                    next_state,
+                    reward)
 
             # Move to the next state
             state = next_state
 
             # Perform one step of the optimization (on the target network)
-            optimize_model()
+            # optimize_model()
             if next_state is None:
                 episode_durations.append(t + 1)
                 break
-            # else:
-            #     if t > 20 and action == 3:
-            #         print("Action: {}".format(action))
-            #         cv2.imshow('old_frame', old_frame)
-            #         cv2.imshow('next_frame', next_frame)
-            #         cv2.waitKey(0)
-            #
-            #         break
 
 
 
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-            # torch.save(policy_net.state_dict(), model_checkpoint_path)
 
+        if i_episode % SAVE_MODEL == 0:
+            torch.save(policy_net.state_dict(), model_checkpoint_path)
+            print("Saving replays at episode {}".format(i_episode))
+            with open(replay_buffer_path, 'wb') as output:
+                pickle.dump(memory.get_memory(), output)
+            eval()
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
+        print("Memory Size: {}".format(len(memory.get_memory())))
+
+        print("Optimizing model")
+        global steps_done
+        steps_done += 1
+        optim_time = time.time()
+
+        loss = 0
+        for _ in range(TRAIN_ITERATIONS):
+            loss += optimize_model()
+        print("BATCH_SIZE:{} TRAIN_ITERATIONS:{} Optimization time:{:.2f} Avg Loss:{:.2f}".format(
+            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
 
 
 def eval():
     time.sleep(1)
     state = start_new_game()
     with torch.no_grad():
+        last_time = time.time()
         for t in count():
-            action = select_action(state, eps=0) # Choose best action
-            ##########################################
-            #TODO Intract with the environment to get the reward and next_state
+            last_time = time.time()
+            action, network_action = select_action(state, eps=0) # Choose best action
             reward, next_state = get_reward_and_next_state(action)
-            # print("frame {}".format(t))
-
-            ##########################################
-            reward = torch.tensor([reward], device=device)
+            print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
 
             # Move to the next state
             state = next_state

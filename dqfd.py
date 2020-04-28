@@ -10,7 +10,7 @@ from collections import namedtuple
 import torch.nn.functional as F
 
 from dqn import DQN
-from replay_memory import ReplayMemory
+from replay_memory import ReplayMemory, Transition
 import cv2
 import pickle
 
@@ -18,19 +18,19 @@ from environment import init_env, start_new_game, get_reward_and_next_state,\
     N_ACTIONS, RESOLUTION, get_action_reward_and_next_state
 
 BATCH_SIZE = 128
+TRAIN_ITERATIONS = 1000
+LEARNING_RATE = 1e-4
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 200
-TARGET_UPDATE = 2
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+TARGET_UPDATE = 10
 
 
-num_episodes = 500
+num_episodes = 20
 episode_durations = []
 res_path = "results/"
-model_checkpoint_path = "model-dqfd-chk.pt"
+model_checkpoint_path = "model-egreedy-chk.pt"
 replay_buffer_path = "replay-dqfd.pkl"
 
 steps_done = 0
@@ -38,14 +38,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
-optimizer = optim.RMSprop(policy_net.parameters())
-memory = ReplayMemory(10000)
+memory = ReplayMemory(30000)
 
 # If loading a saved model
-policy_net.load_state_dict(torch.load(model_checkpoint_path))
-with open(replay_buffer_path, 'rb') as input:
-    memory.set_memory(pickle.load(input))
+# print("Loading old model and memory buffer")
+# policy_net.load_state_dict(torch.load(model_checkpoint_path))
+# with open(replay_buffer_path, 'rb') as input:
+#     memory.set_memory(pickle.load(input))
 
+optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
@@ -101,11 +102,11 @@ def optimize_model():
     # (a final state would've been the one after which simulation ended)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                                if s is not None])
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    non_final_next_states = torch.cat([torch.Tensor(s) for s in batch.next_state
+                                                if s is not None]).to(device)
+    state_batch = torch.cat([torch.Tensor(s) for s in batch.state]).to(device)
+    action_batch = torch.cat([torch.LongTensor([[s]]) for s in batch.action]).to(device)
+    reward_batch = torch.cat([torch.Tensor([s]) for s in batch.reward]).to(device)
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
@@ -131,6 +132,7 @@ def optimize_model():
     for param in policy_net.parameters():
         param.grad.data.clamp_(-1, 1)
     optimizer.step()
+    return loss.item()
 
 
 def select_action(state, eps=None):
@@ -147,22 +149,24 @@ def select_action(state, eps=None):
     else:
         eps_threshold = EPS_END + (EPS_START - EPS_END) * \
             np.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            return policy_net(state).max(1)[1].view(1, 1)
+            state = torch.FloatTensor(state)
+            action = policy_net(state.to(device)).max(1)[1].view(1, 1).item()
+            print("Network action, {:.2f}/{:.2f} -- {}".format(sample, eps_threshold, action))
+            return action
     else:
-        return torch.tensor([[random.randrange(N_ACTIONS)]], device=device, dtype=torch.long)
-        # return torch.tensor([[3]], device=device, dtype=torch.long)
+        return random.randrange(N_ACTIONS)
 
 
-def main():
-    """Main Training Loop"""
+def collect_train_data():
+    """Observes player actions and stores transitions in memory"""
     # init_env()
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
         time.sleep(1)
+        # input("Press any key and hit enter")
         state = start_new_game()
 
         last_time = time.time()
@@ -170,47 +174,39 @@ def main():
         for t in count():
             last_time = time.time()
             action, reward, next_state = get_action_reward_and_next_state()
-            print("t:{} time:{:.2f} action:{}".format(t, time.time() - last_time, action))
-            ##########################################
-            reward = torch.tensor([reward], device=device)
+
+            print("t:{} time:{:.2f} reward:{} action:{}".format(t, time.time() - last_time, reward, action))
 
             # Store the transition in memory
-            memory.push(state, action, next_state, reward)
+            memory.push(state,
+                action,
+                next_state,
+                reward)
 
             # Move to the next state
             state = next_state
 
-            # Perform one step of the optimization (on the target network)
-            # optimize_model()
             if next_state is None:
                 episode_durations.append(t + 1)
                 break
 
-
-        # Update the target network, copying all weights and biases in DQN
-        if i_episode % TARGET_UPDATE == 0:
-            target_net.load_state_dict(policy_net.state_dict())
-            torch.save(policy_net.state_dict(), model_checkpoint_path)
-            with open(replay_buffer_path, 'wb') as output:
-                pickle.dump(memory.get_memory(), output)
-
-
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
+        print("Memory Size: {}".format(len(memory.get_memory())))
+        print("Saving replays at episode {}".format(i_episode))
+        with open(replay_buffer_path, 'wb') as output:
+            pickle.dump(memory.get_memory(), output)
 
 
 def eval():
     time.sleep(1)
     state = start_new_game()
     with torch.no_grad():
+        last_time = time.time()
         for t in count():
+            last_time = time.time()
             action = select_action(state, eps=0) # Choose best action
-            ##########################################
-            #TODO Intract with the environment to get the reward and next_state
             reward, next_state = get_reward_and_next_state(action)
-            # print("frame {}".format(t))
-
-            ##########################################
-            reward = torch.tensor([reward], device=device)
+            print("t:{} time:{:.2f} reward:{}".format(t, time.time() - last_time, reward))
 
             # Move to the next state
             state = next_state
@@ -219,7 +215,44 @@ def eval():
                 break
         print("Eval Duration: {}".format(t))
 
+def action_unskew():
+    mem_size = len(memory.get_memory())
+    print("Memory size: {}".format(mem_size))
+    transitions = {0: [], 1: [], 2: [], 3: []}
+    for t in memory.get_memory():
+        if t is not None:
+            transitions[t[1]].append(t)
+    maxx = 0
+    for key in transitions:
+        if key > 0:
+            maxx = max(maxx, len(transitions[key]))
+        print("{}: {}".format(key, len(transitions[key])))
+    print(maxx)
+    new_memory = []
+    for key in transitions:
+        random.shuffle(transitions[key])
+        new_memory += transitions[key][:maxx]
+    print("New Memory size: {}".format(len(new_memory)))
+    memory.set_memory(new_memory)
+
+
+def learn(N=100):
+    mem_size = len(memory.get_memory())
+    print("Memory size: {}".format(mem_size))
+    if mem_size > BATCH_SIZE:
+        loss = 0
+        print("Optimizing model")
+        for i in range(N):
+            loss += optimize_model()
+            print("{}/{} Avg Loss: {}".format(i, N, loss/(i + 1)))
+            if i % TARGET_UPDATE == 0:
+                target_net.load_state_dict(policy_net.state_dict())
+                torch.save(policy_net.state_dict(), model_checkpoint_path)
+                # print("Swapping target net with policy net")
+
+
 if __name__ == "__main__":
-    main()
-    eval()
-    plot_durations()
+    collect_train_data()
+    # action_unskew()
+    # learn(N=TRAIN_ITERATIONS)
+    # eval()
