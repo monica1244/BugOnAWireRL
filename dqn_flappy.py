@@ -16,7 +16,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-from environment import N_ACTIONS as output_size
+from flappy_birds_environment import N_ACTIONS as output_size
 
 
 
@@ -49,3 +49,9 @@ class DQN(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         return self.fc2(F.relu(self.fc1(x.view(x.size(0), -1))))
+
+
+    def init_weights(self, m):
+        if type(m) == nn.Conv2d or type(m) == nn.Linear:
+            torch.nn.init.uniform_(m.weight, -0.01, 0.01)
+            m.bias.data.fill_(0.01)

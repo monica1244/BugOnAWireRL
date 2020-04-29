@@ -111,7 +111,7 @@ def get_reward_and_next_state(action, dim=84):
         frame_diff = None
         reward = -2
     else:
-        reward = pipe_reward(pre_processed_frame) + bird_in_view_reward(frame)
+        reward = pipe_reward(pre_processed_frame) + bird_in_view_reward(frame) + 0.1
         state = generate_state(pre_processed_frame)
     return reward, state
 

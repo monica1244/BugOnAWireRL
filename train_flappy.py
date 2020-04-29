@@ -21,22 +21,23 @@ from flappy_birds_environment import init_env, start_new_game, \
 np.random.seed(111)
 torch.manual_seed(111)
 
-BATCH_SIZE = 32
-TRAIN_ITERATIONS = 100
+BATCH_SIZE = 256
+TRAIN_ITERATIONS = 10
 DQFD_TRAIN_ITERATIONS = 100
-LEARNING_RATE = 1e-4
-GAMMA = 0.999
+LEARNING_RATE = 0.00025
+GAMMA = 0.99
 EPS_START = 0.1
-EPS_END = 0.0001
-EPS_DECAY = 200
-TARGET_UPDATE = 1
+EPS_END = 1e-4
+EPS_DECAY = 2000000
+TARGET_UPDATE = 3
 SAVE_MODEL = 20
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 
-num_episodes = 500
+num_episodes = 5000
 episode_durations = []
+episode_rewards = []
 res_path = "results/"
 model_checkpoint_path = "model-egreedy-chk.pt"
 replay_buffer_path = "replay-egreedy.pkl"
@@ -44,6 +45,7 @@ replay_buffer_path = "replay-egreedy.pkl"
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
+policy_net.apply(policy_net.init_weights)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
 memory = ReplayMemory(10000)
@@ -66,7 +68,7 @@ def keyboardInterruptHandler(signal, frame):
     exit(0)
 
 
-# signal.signal(signal.SIGINT, keyboardInterruptHandler)
+signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 
 def plot_durations():
@@ -75,7 +77,8 @@ def plot_durations():
     Args: i_episode: episode number used in the image name
 
     """
-
+    np.savetxt(res_path + "episode-durations_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_durations)
+    np.savetxt(res_path + "episode-rewards_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_rewards)
     plt.figure(2)
     plt.clf()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
@@ -87,7 +90,7 @@ def plot_durations():
         print("doesnt existtt")
         os.makedirs(res_path)
     try:
-        plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M%S")))
+        plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M")))
     except:
         print("Unable to save plot")
     # Take 100 episode averages and plot them too
@@ -185,11 +188,12 @@ def main():
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        time.sleep(0.5)
+        time.sleep(1)
         frame = start_new_game()
         state = np.concatenate(tuple(frame for _ in range(4)))[None, :, :, :]
 
         last_time = time.time()
+        total_reward = 0
         print("Game Start Time: {}".format(time.strftime("%Y/%m/%d-%H:%M:%S")))
         for t in count():
             last_time = time.time()
@@ -201,6 +205,8 @@ def main():
                 next_state = None
             else:
                 next_state = np.concatenate((state[0, 1:, :, :], next_frame))[None, :, :, :]
+
+            loss = optimize_model(memory)
 
             if network_action is not None:
                 print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
@@ -216,10 +222,14 @@ def main():
 
             # Move to the next state
             state = next_state
+            total_reward += reward
 
             if next_frame is None:
                 episode_durations.append(t + 1)
+                episode_rewards.append(total_reward)
                 break
+
+
 
 
         # Update the target network, copying all weights and biases in DQN
