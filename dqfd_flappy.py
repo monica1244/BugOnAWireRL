@@ -2,7 +2,7 @@ import random
 import os
 import time
 import numpy as np
-import torch, torchvision
+import torch
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
@@ -19,7 +19,7 @@ from flappy_birds_environment import init_env, start_new_game, get_reward_and_ne
 
 BATCH_SIZE = 512
 TRAIN_ITERATIONS = 1000
-LEARNING_RATE = 1e-7
+LEARNING_RATE = 1e-4
 GAMMA = 0.999
 EPS_START = 0.9
 EPS_END = 0.05
@@ -42,9 +42,9 @@ memory = ReplayMemory(30000)
 
 # If loading a saved model
 print("Loading old model and memory buffer")
-policy_net.load_state_dict(torch.load(model_checkpoint_path))
-with open(replay_buffer_path, 'rb') as input:
-    memory.set_memory(pickle.load(input))
+# policy_net.load_state_dict(torch.load(model_checkpoint_path))
+# with open(replay_buffer_path, 'rb') as input:
+#     memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
@@ -167,13 +167,19 @@ def collect_train_data():
         # Initialize the environment and state
         time.sleep(1)
         # input("Press any key and hit enter")
-        state = start_new_game()
+        frame = start_new_game()
+        state = np.concatenate(tuple(frame for _ in range(4)))[None, :, :, :]
 
         last_time = time.time()
         print("Game Start Time: {}".format(last_time))
         for t in count():
             last_time = time.time()
-            action, reward, next_state = get_action_reward_and_next_state()
+            action, reward, next_frame = get_action_reward_and_next_state()
+
+            if next_frame is None:
+                next_state = None
+            else:
+                next_state = np.concatenate((state[0, 1:, :, :], next_frame))[None, :, :, :]
 
             print("t:{}\t time:{:.2f}\t reward:{}\t action:{}".format(t, time.time() - last_time, reward, action))
 
