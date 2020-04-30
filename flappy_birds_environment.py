@@ -16,7 +16,7 @@ from pykeyboard import PyKeyboard
 
 import os
 import torch
-from getkeys import key_check
+from getkeys import key_check_flappy
 
 
 # Set TOP_LEFT here as per the right pixel by checking mouse position
@@ -114,6 +114,24 @@ def get_reward_and_next_state(action, dim=84):
         reward = pipe_reward(pre_processed_frame) + bird_in_view_reward(frame) + 0.1
         state = generate_state(pre_processed_frame)
     return reward, state
+
+
+def get_action_reward_and_next_state(action, dim=84):
+
+    action = key_check_flappy()
+    frame = np.array(ImageGrab.grab(bbox=SCREEN))
+    pre_processed_frame = pre_process(frame)
+    if is_game_over(frame, pre_processed_frame):
+        state = None
+        frame_diff = None
+        reward = -2
+    else:
+        reward = pipe_reward(pre_processed_frame) + bird_in_view_reward(frame) + 0.1
+        state = generate_state(pre_processed_frame)
+    return action,reward, state
+
+
+
 
 def pipe_reward(pre_processed_frame):
     # wire = pre_processed_frame[:, 305-TOP_LEFT[0]:340-TOP_LEFT[0]]
