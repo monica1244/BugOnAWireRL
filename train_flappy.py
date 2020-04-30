@@ -77,22 +77,31 @@ def plot_durations():
     Args: i_episode: episode number used in the image name
 
     """
+    global episode_durations,episode_rewards
     np.savetxt(res_path + "episode-durations_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_durations)
     np.savetxt(res_path + "episode-rewards_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_rewards)
-    plt.figure(2)
+    # plt.figure(2)
     plt.clf()
+    fig, ax1 = plt.subplots()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    plt.title('Training...')
-    plt.xlabel('Episode')
-    plt.ylabel('Duration')
-    plt.plot(durations_t.numpy())
+    rewards_t = torch.tensor(episode_rewards, dtype=torch.float)
+    ax1.set_title('Training...')
+    ax1.set_xlabel('Episode')
+    ax1.set_ylabel('Duration', color= 'tab:blue')
+    ax1.plot(durations_t.numpy(),color='tab:blue')
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Episode Rewards', color= 'tab:green')
+    ax2.plot(rewards_t.numpy(),color='tab:green')
+
     if not os.path.exists(res_path):
         print("doesnt existtt")
         os.makedirs(res_path)
     try:
-        plt.savefig(res_path + "duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M")))
+        fig.savefig(res_path + "duration_reward_training_plot_{}.png".format(time.strftime("%Y%m%d-%H%M")))
     except:
         print("Unable to save plot")
+
+
     # Take 100 episode averages and plot them too
     # if len(durations_t) >= 100:
     #     means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
@@ -250,12 +259,12 @@ def main():
         global steps_done
         steps_done += 1
 
-        # optim_time = time.time()
-        # loss = 0
-        # for _ in range(DQFD_TRAIN_ITERATIONS):
-        #     loss += optimize_model(dqfd_memory)
-        # print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
-        #     BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
+        optim_time = time.time()
+        loss = 0
+        for _ in range(DQFD_TRAIN_ITERATIONS):
+            loss += optimize_model(dqfd_memory)
+        print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
+            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
 
         optim_time = time.time()
         loss = 0
