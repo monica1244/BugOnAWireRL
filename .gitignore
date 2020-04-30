@@ -8,3 +8,4 @@ model-egreedy-chk.pt
 model-dqfd-chk.pt
 replay-dqfd.pkl
 replay-egreedy.pkl
+flappy-replay-dqfd.pkl
