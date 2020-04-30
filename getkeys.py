@@ -14,6 +14,12 @@ def key_check():
     else:
         return 0
 
+def key_check_flappy():
+    if wapi.GetAsyncKeyState(wcon.VK_SPACE):
+        return 1
+    else:
+        return 0
+
 if __name__ == '__main__':
     while(True):
         time.sleep(0.2)

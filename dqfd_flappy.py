@@ -2,58 +2,47 @@ import random
 import os
 import time
 import numpy as np
-import torch, torchvision
+import torch
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
 from collections import namedtuple
 import torch.nn.functional as F
 
-from dqn_flappy import DQN
-from replay_memory import ReplayMemory
+from dqn import DQN
+from replay_memory import ReplayMemory, Transition
 import cv2
 import pickle
-import signal
 
-from flappy_birds_environment import init_env, start_new_game, \
-    get_reward_and_next_state, N_ACTIONS, RESOLUTION
+from flappy_birds_environment import init_env, start_new_game, get_reward_and_next_state,\
+    N_ACTIONS, RESOLUTION, get_action_reward_and_next_state
 
-np.random.seed(111)
-torch.manual_seed(111)
-
-BATCH_SIZE = 256
-TRAIN_ITERATIONS = 10
-DQFD_TRAIN_ITERATIONS = 100
-LEARNING_RATE = 0.00025
-GAMMA = 0.99
-EPS_START = 0.1
-EPS_END = 1e-4
-EPS_DECAY = 2000000
-TARGET_UPDATE = 3
-SAVE_MODEL = 20
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+BATCH_SIZE = 512
+TRAIN_ITERATIONS = 1000
+LEARNING_RATE = 1e-4
+GAMMA = 0.999
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
+TARGET_UPDATE = 10
 
 
-num_episodes = 5000
+num_episodes = 20
 episode_durations = []
-episode_rewards = []
 res_path = "results/"
-model_checkpoint_path = "model-egreedy-chk.pt"
-replay_buffer_path = "replay-egreedy.pkl"
+model_checkpoint_path = "flappy-model-egreedy-chk.pt"
+replay_buffer_path = "flappy-replay-dqfd.pkl"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
-policy_net.apply(policy_net.init_weights)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
-memory = ReplayMemory(10000)
+memory = ReplayMemory(30000)
 
 # If loading a saved model
-# print("Loading Model and Replay buffer")
-# if os.path.exists(model_checkpoint_path):
-#     policy_net.load_state_dict(torch.load(model_checkpoint_path))
+print("Loading old model and memory buffer")
+# policy_net.load_state_dict(torch.load(model_checkpoint_path))
 # with open(replay_buffer_path, 'rb') as input:
 #     memory.set_memory(pickle.load(input))
 
@@ -62,46 +51,27 @@ target_net.load_state_dict(policy_net.state_dict())
 target_net.eval()
 
 
-def keyboardInterruptHandler(signal, frame):
-    print("KeyboardInterrupt has been caught. Saving plot...")
-    plot_durations()
-    exit(0)
-
-
-signal.signal(signal.SIGINT, keyboardInterruptHandler)
-
-
 def plot_durations():
     """Function to plot and store the durations of each episode
 
     Args: i_episode: episode number used in the image name
 
     """
-    global episode_durations,episode_rewards
-    np.savetxt(res_path + "episode-durations_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_durations)
-    np.savetxt(res_path + "episode-rewards_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_rewards)
-    # plt.figure(2)
-    plt.clf()
-    fig, ax1 = plt.subplots()
-    durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    rewards_t = torch.tensor(episode_rewards, dtype=torch.float)
-    ax1.set_title('Training...')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Duration', color= 'tab:blue')
-    ax1.plot(durations_t.numpy(),color='tab:blue')
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('Episode Rewards', color= 'tab:green')
-    ax2.plot(rewards_t.numpy(),color='tab:green')
 
+    plt.figure(2)
+    plt.clf()
+    durations_t = torch.tensor(episode_durations, dtype=torch.float)
+    plt.title('Training...')
+    plt.xlabel('Episode')
+    plt.ylabel('Duration')
+    plt.plot(durations_t.numpy())
     if not os.path.exists(res_path):
         print("doesnt existtt")
         os.makedirs(res_path)
     try:
-        fig.savefig(res_path + "duration_reward_training_plot_{}.png".format(time.strftime("%Y%m%d-%H%M")))
+        plt.savefig(res_path + "flappy_duration_plot_{}.png".format(time.strftime("%Y%m%d-%H%M%S")))
     except:
         print("Unable to save plot")
-
-
     # Take 100 episode averages and plot them too
     # if len(durations_t) >= 100:
     #     means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
@@ -112,7 +82,7 @@ def plot_durations():
     plt.pause(0.001)  # pause a bit so that plots are updated
     time.sleep(1)
 
-def optimize_model(memory):
+def optimize_model():
     """Function for gradient updates
 
     In this function we sample from memory(ReplayMemory), use the policy_net to
@@ -121,7 +91,7 @@ def optimize_model(memory):
 
     """
     if len(memory) < BATCH_SIZE:
-        return 0
+        return
     transitions = memory.sample(BATCH_SIZE)
     # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
     # detailed explanation). This converts batch-array of Transitions
@@ -183,120 +153,114 @@ def select_action(state, eps=None):
         with torch.no_grad():
             state = torch.FloatTensor(state)
             action = policy_net(state.to(device)).max(1)[1].view(1, 1).item()
-            return action, (sample, eps_threshold)
+            print("Network action, {:.2f}/{:.2f} -- {}".format(sample, eps_threshold, action))
+            return action
     else:
-        action = random.randrange(N_ACTIONS)
-        return action, None
+        return random.randrange(N_ACTIONS)
 
 
-def main():
-    """Main Training Loop"""
+def collect_train_data():
+    """Observes player actions and stores transitions in memory"""
     # init_env()
-    # Warm up the policy network
-    select_action(np.zeros((1, 4, RESOLUTION, RESOLUTION)))
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
         time.sleep(1)
+        # input("Press any key and hit enter")
         frame = start_new_game()
         state = np.concatenate(tuple(frame for _ in range(4)))[None, :, :, :]
 
         last_time = time.time()
-        total_reward = 0
-        print("Game Start Time: {}".format(time.strftime("%Y/%m/%d-%H:%M:%S")))
+        print("Game Start Time: {}".format(last_time))
         for t in count():
             last_time = time.time()
-            action, network_action = select_action(state)
-
-            reward, next_frame = get_reward_and_next_state(action)
+            action, reward, next_frame = get_action_reward_and_next_state()
 
             if next_frame is None:
                 next_state = None
             else:
                 next_state = np.concatenate((state[0, 1:, :, :], next_frame))[None, :, :, :]
 
-            loss = optimize_model(memory)
+            print("t:{}\t time:{:.2f}\t reward:{}\t action:{}".format(t, time.time() - last_time, reward, action))
 
-            if network_action is not None:
-                print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
-            else:
-                print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t".format(t, time.time() - last_time, reward, action))
-            # if reward > 1:
-            #     print("REWARD -- {}".format(reward))
             # Store the transition in memory
-            memory.push(state,
-                action,
-                next_state,
-                reward)
+            # only if frame number > 60, don't consider empty frames
+            if t > 60:
+                memory.push(state,
+                    action,
+                    next_state,
+                    reward)
 
             # Move to the next state
             state = next_state
-            total_reward += reward
 
-            if next_frame is None:
+            if next_state is None:
                 episode_durations.append(t + 1)
-                episode_rewards.append(total_reward)
                 break
-
-
-
-
-        # Update the target network, copying all weights and biases in DQN
-        if i_episode % TARGET_UPDATE == 0:
-            target_net.load_state_dict(policy_net.state_dict())
-
-        if i_episode % SAVE_MODEL == 0:
-            torch.save(policy_net.state_dict(), model_checkpoint_path)
-            print("Saving replays at episode {}".format(i_episode))
-            with open(replay_buffer_path, 'wb') as output:
-                pickle.dump(memory.get_memory(), output)
-            eval()
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
         print("Memory Size: {}".format(len(memory.get_memory())))
-
-        print("Optimizing model")
-        global steps_done
-        steps_done += 1
-
-        optim_time = time.time()
-        loss = 0
-        for _ in range(DQFD_TRAIN_ITERATIONS):
-            loss += optimize_model(dqfd_memory)
-        print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
-            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
-
-        optim_time = time.time()
-        loss = 0
-        for _ in range(TRAIN_ITERATIONS):
-            loss += optimize_model(memory)
-        print("eGREEDY\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
-            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
+        print("Saving replays at episode {}".format(i_episode))
+        with open(replay_buffer_path, 'wb') as output:
+            pickle.dump(memory.get_memory(), output)
 
 
 def eval():
-    print("\nStarting Eval")
-    time.sleep(2)
-    frame = start_new_game()
-    state = np.concatenate(tuple(frame for _ in range(4)))[None, :, :, :]
+    time.sleep(1)
+    state = start_new_game()
     with torch.no_grad():
         last_time = time.time()
         for t in count():
             last_time = time.time()
-            action, network_action = select_action(state, eps=0) # Choose best action
-            reward, next_frame = get_reward_and_next_state(action)
-            if next_frame is None:
-                next_state = None
-            else:
-                next_state = np.concatenate((state[0, 1:, :, :], next_frame))[None, :, :, :]
-            print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
+            action = select_action(state, eps=0) # Choose best action
+            reward, next_state = get_reward_and_next_state(action)
+            print("t:{} time:{:.2f} reward:{}".format(t, time.time() - last_time, reward))
+
             # Move to the next state
             state = next_state
-            if next_frame is None:
+
+            if next_state is None:
                 break
         print("Eval Duration: {}".format(t))
 
+def action_unskew():
+    mem_size = len(memory.get_memory())
+    print("Memory size: {}".format(mem_size))
+    transitions = {0: [], 1: []}
+    for t in memory.get_memory():
+        if t is not None:
+            transitions[t[1]].append(t)
+    maxx = 0
+    for key in transitions:
+        if key > 0:
+            maxx = max(maxx, len(transitions[key]))
+        print("{}: {}".format(key, len(transitions[key])))
+    print(maxx)
+    new_memory = []
+    for key in transitions:
+        random.shuffle(transitions[key])
+        new_memory += transitions[key][:maxx]
+    print("New Memory size: {}".format(len(new_memory)))
+    memory.set_memory(new_memory)
+
+
+def learn(N=100):
+    mem_size = len(memory.get_memory())
+    print("Memory size: {}".format(mem_size))
+    if mem_size > BATCH_SIZE:
+        loss = 0
+        print("Optimizing model")
+        for i in range(N):
+            loss += optimize_model()
+            print("{}/{} Avg Loss: {:.2f}".format(i, N, loss/(i + 1)))
+            if i % TARGET_UPDATE == 0:
+                target_net.load_state_dict(policy_net.state_dict())
+                torch.save(policy_net.state_dict(), model_checkpoint_path)
+                # print("Swapping target net with policy net")
+
+
 if __name__ == "__main__":
-    main()
-    eval()
-    plot_durations()
+    collect_train_data()
+    # action_unskew()
+    # learn(N=TRAIN_ITERATIONS)
+    # eval()

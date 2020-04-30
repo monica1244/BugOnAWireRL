@@ -8,7 +8,7 @@ https://www.intel.com/content/www/us/en/artificial-intelligence/posts/demystifyi
 """
 from __future__ import print_function
 
-import torch,torchvision
+import torch
 import cv2
 import sys
 import random
