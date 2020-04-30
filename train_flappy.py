@@ -2,7 +2,7 @@ import random
 import os
 import time
 import numpy as np
-import torch, torchvision
+import torch
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from itertools import count
@@ -22,13 +22,13 @@ np.random.seed(111)
 torch.manual_seed(111)
 
 BATCH_SIZE = 256
-TRAIN_ITERATIONS = 10
+TRAIN_ITERATIONS = 100
 DQFD_TRAIN_ITERATIONS = 100
 LEARNING_RATE = 0.00025
 GAMMA = 0.99
 EPS_START = 0.1
-EPS_END = 1e-4
-EPS_DECAY = 2000000
+EPS_END = 0.05
+EPS_DECAY = 200
 TARGET_UPDATE = 3
 SAVE_MODEL = 20
 Transition = namedtuple('Transition',
@@ -39,8 +39,9 @@ num_episodes = 5000
 episode_durations = []
 episode_rewards = []
 res_path = "results/"
-model_checkpoint_path = "model-egreedy-chk.pt"
-replay_buffer_path = "replay-egreedy.pkl"
+model_checkpoint_path = "flappy-model-egreedy-chk.pt"
+replay_buffer_path = "flappy-replay-egreedy.pkl"
+dqfd_replay_buffer_path = "flappy-replay-dqfd.pkl"
 
 steps_done = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,6 +50,16 @@ policy_net.apply(policy_net.init_weights)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
 memory = ReplayMemory(10000)
+dqfd_memory = ReplayMemory(10000)
+
+# If loading a saved model
+print("Loading Model and Replay buffer")
+if os.path.exists(model_checkpoint_path):
+    policy_net.load_state_dict(torch.load(model_checkpoint_path))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
+with open(dqfd_replay_buffer_path, 'rb') as input:
+    dqfd_memory.set_memory(pickle.load(input))
 
 # If loading a saved model
 # print("Loading Model and Replay buffer")
@@ -250,12 +261,12 @@ def main():
         global steps_done
         steps_done += 1
 
-        # optim_time = time.time()
-        # loss = 0
-        # for _ in range(DQFD_TRAIN_ITERATIONS):
-        #     loss += optimize_model(dqfd_memory)
-        # print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
-        #     BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
+        optim_time = time.time()
+        loss = 0
+        for _ in range(DQFD_TRAIN_ITERATIONS):
+            loss += optimize_model(dqfd_memory)
+        print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
+            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
 
         optim_time = time.time()
         loss = 0

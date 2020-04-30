@@ -26,8 +26,8 @@ EPS_END = 0.05
 EPS_DECAY = 200
 TARGET_UPDATE = 10
 
-
-num_episodes = 20
+SAVE_EVERY = 1
+num_episodes = 200
 episode_durations = []
 res_path = "results/"
 model_checkpoint_path = "flappy-model-egreedy-chk.pt"
@@ -43,8 +43,8 @@ memory = ReplayMemory(30000)
 # If loading a saved model
 print("Loading old model and memory buffer")
 # policy_net.load_state_dict(torch.load(model_checkpoint_path))
-# with open(replay_buffer_path, 'rb') as input:
-#     memory.set_memory(pickle.load(input))
+with open(replay_buffer_path, 'rb') as input:
+    memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
@@ -164,6 +164,7 @@ def collect_train_data():
     # init_env()
 
     for i_episode in range(num_episodes):
+        # input("Play more?")
         # Initialize the environment and state
         time.sleep(1)
         # input("Press any key and hit enter")
@@ -172,6 +173,7 @@ def collect_train_data():
 
         last_time = time.time()
         print("Game Start Time: {}".format(last_time))
+        episode_memory = []
         for t in count():
             last_time = time.time()
             action, reward, next_frame = get_action_reward_and_next_state()
@@ -185,24 +187,30 @@ def collect_train_data():
 
             # Store the transition in memory
             # only if frame number > 60, don't consider empty frames
-            if t > 60:
-                memory.push(state,
-                    action,
-                    next_state,
-                    reward)
+            episode_memory.append((state,
+                action,
+                next_state,
+                reward))
 
             # Move to the next state
             state = next_state
 
             if next_state is None:
                 episode_durations.append(t + 1)
+                if t > 200:
+                    print("This episode will be saved.")
+                    for tup in episode_memory:
+                        s, a, _s, r = tup
+                        memory.push(s, a, _s, r)
                 break
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
         print("Memory Size: {}".format(len(memory.get_memory())))
-        print("Saving replays at episode {}".format(i_episode))
-        with open(replay_buffer_path, 'wb') as output:
-            pickle.dump(memory.get_memory(), output)
+
+        if i_episode % SAVE_EVERY == 0:
+            print("Saving replays at episode {}".format(i_episode))
+            with open(replay_buffer_path, 'wb') as output:
+                pickle.dump(memory.get_memory(), output)
 
 
 def eval():
