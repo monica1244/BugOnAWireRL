@@ -116,7 +116,7 @@ def get_reward_and_next_state(action, dim=84):
     return reward, state
 
 
-def get_action_reward_and_next_state(action, dim=84):
+def get_action_reward_and_next_state():
 
     action = key_check_flappy()
     frame = np.array(ImageGrab.grab(bbox=SCREEN))
