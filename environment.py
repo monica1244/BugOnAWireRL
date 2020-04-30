@@ -45,43 +45,47 @@ def init_env():
     os.chdir(r"C:\Users\nihal\github\bugOnAWireRL")
 
 
-def generate_state(image_arrays, dim=RESOLUTION, frames=1, channels=3):
-    state = np.zeros((frames, channels, dim, dim))
-    for i, img in enumerate(image_arrays):
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # Color handling
-        brown_lo = np.array([0, 50, 100])
-        brown_hi = np.array([0, 100, 200])
-        mask = cv2.inRange(img, brown_lo, brown_hi)
-        img[mask>0] = (0, 0, 0)
-        blue_lo = np.array([180, 140, 20])
-        blue_hi = np.array([255, 220, 120])
-        mask = cv2.inRange(img, blue_lo, blue_hi)
-        img[mask>0] = (0, 0, 0)
-        crow_lo = np.array([40, 40, 40])
-        crow_hi = np.array([60, 60, 60])
-        mask = cv2.inRange(img, crow_lo, crow_hi)
-        img[mask>0] = (0, 0, 255)
-        # Remove corners
-        img[:40, :200, :] = 0
-        img[:40, -200:, :] = 0
-        img = cv2.resize(img,(dim, dim)) / 255.0
-        # if np.random.random_sample() > 0.5:
-        #     mouse.click(TOP_LEFT[0] + 10, TOP_LEFT[1] + 10, 1)
-        #     cv2.imshow('img', img)
-        #     cv2.waitKey(0)
+def generate_state(img, dim=RESOLUTION, channels=1):
+    bug_position = get_bug_position(img)
+    bug_state = np.zeros(4)
+    if bug_position != -1:
+        bug_state[bug_position] = 1
 
-        state[i] = np.transpose(img, (2, 0, 1))
-    return state
+    state = np.zeros((channels, dim, dim))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # Color handling
+    brown_lo = np.array([0, 50, 100])
+    brown_hi = np.array([0, 100, 200])
+    mask = cv2.inRange(img, brown_lo, brown_hi)
+    img[mask>0] = (0, 0, 0)
+    blue_lo = np.array([180, 140, 20])
+    blue_hi = np.array([255, 220, 120])
+    mask = cv2.inRange(img, blue_lo, blue_hi)
+    img[mask>0] = (0, 0, 0)
+    crow_lo = np.array([40, 40, 40])
+    crow_hi = np.array([60, 60, 60])
+    mask = cv2.inRange(img, crow_lo, crow_hi)
+    img[mask>0] = (0, 0, 255)
+    # Remove corners
+    img[:40, :200, :] = 0
+    img[:40, -200:, :] = 0
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    img = cv2.resize(img,(dim, dim)) / 255.0
+    # if np.random.random_sample() > 0.5:
+    #     mouse.click(TOP_LEFT[0] + 10, TOP_LEFT[1] + 10, 1)
+    #     cv2.imshow('img', img)
+    #     cv2.waitKey(0)
+
+    state[0] = img
+    return (state, bug_state)
 
 def start_new_game():
     mouse.click(TOP_LEFT[0], TOP_LEFT[1], 1)
     mouse.click(NEW_GAME_PIXEL[0], NEW_GAME_PIXEL[1], 1)
-    image_arrays = []
-    for _ in range(FRAMES):
-        image_arrays.append(np.array(ImageGrab.grab(bbox=SCREEN)))
-        time.sleep(0.1)
-    return generate_state(image_arrays)
+    frame = np.array(ImageGrab.grab(bbox=SCREEN))
+    time.sleep(0.1)
+    return generate_state(frame)
 
 def is_game_over(frame):
     '''
@@ -117,20 +121,20 @@ def get_reward_and_next_state(action):
 
     state = np.array(ImageGrab.grab(bbox=SCREEN))
     reward = sum(get_crows_positions(state)) * 1
+
+    bug_position = get_bug_position(state)
+    if (bug_position == 0 and action == 3 or \
+        bug_position == 3 and action == 2):
+        reward -= 1
+
     if is_game_over(state):
         state = None
         frame_diff = None
         reward = -5
     else:
         image_arrays = []
-        for _ in range(FRAMES):
-            frame_i = np.array(ImageGrab.grab(bbox=SCREEN))
-            # time.sleep(0.2)
-            # frame_f = np.array(ImageGrab.grab(bbox=SCREEN))
-            # frame_diff = np.absolute(frame_f - frame_i)
-            frame_diff = frame_i
-            image_arrays.append(frame_diff)
-        state = generate_state(image_arrays)
+        frame = np.array(ImageGrab.grab(bbox=SCREEN))
+        state = generate_state(frame)
     return reward, state
 
 
@@ -144,14 +148,9 @@ def get_action_reward_and_next_state():
         reward = -5
     else:
         image_arrays = []
-        for _ in range(FRAMES):
-            frame_i = np.array(ImageGrab.grab(bbox=SCREEN))
-            time.sleep(0.1)
-            # frame_f = np.array(ImageGrab.grab(bbox=SCREEN))
-            # frame_diff = np.absolute(frame_f - frame_i)
-            frame_diff = frame_i
-            image_arrays.append(frame_diff)
-        state = generate_state(image_arrays)
+        frame = np.array(ImageGrab.grab(bbox=SCREEN))
+        time.sleep(0.1)
+        state = generate_state(frame)
     return action, reward, state
 
 
@@ -200,10 +199,10 @@ def get_bug_position(img):
     green_lo = np.array([0, 90, 0])
     green_hi = np.array([0, 150, 0])
 
-    wire_0 = img[615-420:700-420, 295-180:340-180, :]
-    wire_1 = img[615-420:700-420, 405-180:450-180, :]
-    wire_2 = img[615-420:700-420, 505-180:550-180, :]
-    wire_3 = img[615-420:700-420, 615-180:660-180, :]
+    wire_0 = img[650-420:700-420, 295-180:340-180, :]
+    wire_1 = img[650-420:700-420, 405-180:450-180, :]
+    wire_2 = img[650-420:700-420, 505-180:550-180, :]
+    wire_3 = img[650-420:700-420, 615-180:660-180, :]
 
 
     mask_0 = cv2.inRange(wire_0, green_lo, green_hi)
@@ -255,14 +254,15 @@ def screen_record():
         # print("Game Over? " + str(is_game_over(img)))
         last_time = time.time()
 
-        # print("Bug position: {}".format(get_bug_position(img)))
+        print("Bug position: {}".format(get_bug_position(img)))
         r = sum(get_crows_positions(img))
         if r > 0 and not is_game_over(img):
             print("Crow positions: {}".format(get_crows_positions(img)))
 
+        printscreen = cv2.cvtColor(printscreen, cv2.COLOR_RGB2GRAY)
         printscreen = cv2.resize(printscreen,(84, 84)) / 255.0
 
-        # cv2.imshow('window', printscreen)
+        cv2.imshow('window', printscreen)
         if cv2.waitKey(25) & 0xFF == ord('q'):
             cv2.destroyAllWindows()
             break
