@@ -20,22 +20,25 @@ from environment import init_env, start_new_game, get_reward_and_next_state,N_AC
 np.random.seed(111)
 torch.manual_seed(111)
 
-BATCH_SIZE = 512
+BATCH_SIZE = 128
 TRAIN_ITERATIONS = 100
 DQFD_TRAIN_ITERATIONS = 100
 LEARNING_RATE = 1e-4
 GAMMA = 0.999
-EPS_START = 0.1
+EPS_START = 0.2
 EPS_END = 0.05
 EPS_DECAY = 200
 TARGET_UPDATE = 1
 SAVE_MODEL = 20
+EVAL_EPISODES = 5
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 
 num_episodes = 500
 episode_durations = []
+episode_rewards = []
+eval_scores = []
 res_path = "results/"
 model_checkpoint_path = "model-egreedy-chk.pt"
 replay_buffer_path = "replay-egreedy.pkl"
@@ -47,16 +50,16 @@ policy_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 target_net = DQN(RESOLUTION, RESOLUTION, N_ACTIONS).to(device)
 
 memory = ReplayMemory(10000)
-dqfd_memory = ReplayMemory(10000)
+# dqfd_memory = ReplayMemory(10000)
 
 # If loading a saved model
 print("Loading Model and Replay buffer")
-if os.path.exists(model_checkpoint_path):
-    policy_net.load_state_dict(torch.load(model_checkpoint_path))
-with open(replay_buffer_path, 'rb') as input:
-    memory.set_memory(pickle.load(input))
-with open(dqfd_replay_buffer_path, 'rb') as input:
-    dqfd_memory.set_memory(pickle.load(input))
+# if os.path.exists(model_checkpoint_path):
+#     policy_net.load_state_dict(torch.load(model_checkpoint_path))
+# with open(replay_buffer_path, 'rb') as input:
+#     memory.set_memory(pickle.load(input))
+# with open(dqfd_replay_buffer_path, 'rb') as input:
+#     dqfd_memory.set_memory(pickle.load(input))
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
 target_net.load_state_dict(policy_net.state_dict())
@@ -78,7 +81,9 @@ def plot_durations():
     Args: i_episode: episode number used in the image name
 
     """
-
+    np.savetxt(res_path + "episode-durations_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_durations)
+    np.savetxt(res_path + "episode-rewards_{}.out".format(time.strftime("%Y%m%d-%H%M")), episode_rewards)
+    np.savetxt(res_path + "eval-scores_{}.out".format(time.strftime("%Y%m%d-%H%M")), eval_scores)
     plt.figure(2)
     plt.clf()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
@@ -123,16 +128,19 @@ def optimize_model(memory):
     # (a final state would've been the one after which simulation ended)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([torch.Tensor(s) for s in batch.next_state
+    non_final_next_states_img = torch.cat([torch.Tensor(s[0]) for s in batch.next_state
                                                 if s is not None]).to(device)
-    state_batch = torch.cat([torch.Tensor(s) for s in batch.state]).to(device)
+    non_final_next_states_bug = torch.cat([torch.Tensor(s[1]) for s in batch.next_state
+                                                if s is not None]).to(device)
+    state_batch_img = torch.cat([torch.Tensor(s[0]) for s in batch.state]).to(device)
+    state_batch_bug = torch.cat([torch.Tensor(s[1]) for s in batch.state]).to(device)
     action_batch = torch.cat([torch.LongTensor([[s]]) for s in batch.action]).to(device)
     reward_batch = torch.cat([torch.Tensor([s]) for s in batch.reward]).to(device)
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
     # for each batch state according to policy_net
-    state_action_values = policy_net(state_batch).gather(1, action_batch)
+    state_action_values = policy_net(state_batch_img, state_batch_bug).gather(1, action_batch)
 
     # Compute V(s_{t+1}) for all next states.
     # Expected values of actions for non_final_next_states are computed based
@@ -140,7 +148,7 @@ def optimize_model(memory):
     # This is merged based on the mask, such that we'll have either the expected
     # state value or 0 in case the state was final.
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+    next_state_values[non_final_mask] = target_net(non_final_next_states_img, non_final_next_states_bug).max(1)[0].detach()
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
@@ -172,8 +180,9 @@ def select_action(state, eps=None):
             np.exp(-1. * steps_done / EPS_DECAY)
     if sample > eps_threshold:
         with torch.no_grad():
-            state = torch.FloatTensor(state)
-            action = policy_net(state.to(device)).max(1)[1].view(1, 1).item()
+            img_state = torch.FloatTensor(state[0])
+            bug_state = torch.FloatTensor(state[1])
+            action = policy_net(img_state.to(device), bug_state.to(device)).max(1)[1].view(1, 1).item()
             return action, (sample, eps_threshold)
     else:
         action = random.randrange(N_ACTIONS)
@@ -187,16 +196,24 @@ def main():
     for i_episode in range(num_episodes):
         # Initialize the environment and state
         time.sleep(2)
-        state = start_new_game()
+        frame = start_new_game()
+        state = np.concatenate(tuple(frame for _ in range(4)))[None, :, :, :]
         time.sleep(2)
 
         last_time = time.time()
         print("Game Start Time: {}".format(time.strftime("%Y/%m/%d-%H:%M:%S")))
+        total_reward = 0
         for t in count():
             last_time = time.time()
             action, network_action = select_action(state)
 
-            reward, next_state = get_reward_and_next_state(action)
+            reward, next_frame = get_reward_and_next_state(action)
+            total_reward += reward
+
+            if next_frame is None:
+                next_state = None
+            else:
+                next_state = np.concatenate((state[0, 1:, :, :], next_frame))[None, :, :, :]
 
             if network_action is not None:
                 print("t:{}\t time:{:.2f}\t reward:{}\t action:{}\t NETWORK {:.2f}/{:.2f}".format(t, time.time() - last_time, reward, action, network_action[0], network_action[1]))
@@ -219,6 +236,7 @@ def main():
             # optimize_model()
             if next_state is None:
                 episode_durations.append(t + 1)
+                episode_rewards.append(total_reward)
                 break
 
 
@@ -232,7 +250,14 @@ def main():
             print("Saving replays at episode {}".format(i_episode))
             with open(replay_buffer_path, 'wb') as output:
                 pickle.dump(memory.get_memory(), output)
-            eval()
+
+            total_eval_time = 0
+            for eval_no in range(EVAL_EPISODES):
+                eval_time = eval()
+                print("Eval-{} Time-{}".format(eval_no, eval_time))
+                total_eval_time += eval_time
+            eval_scores.append(total_eval_time / EVAL_EPISODES)
+
 
         print("Episode {}/{} -- Duration: {}".format(i_episode, num_episodes, t+1))
         print("Memory Size: {}".format(len(memory.get_memory())))
@@ -241,12 +266,12 @@ def main():
         global steps_done
         steps_done += 1
 
-        optim_time = time.time()
-        loss = 0
-        for _ in range(DQFD_TRAIN_ITERATIONS):
-            loss += optimize_model(dqfd_memory)
-        print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
-            BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
+        # optim_time = time.time()
+        # loss = 0
+        # for _ in range(DQFD_TRAIN_ITERATIONS):
+        #     loss += optimize_model(dqfd_memory)
+        # print("DQFD\t BATCH_SIZE:{}\t TRAIN_ITERATIONS:{}\t Time:{:.2f}\t Avg Loss:{:.2f}".format(
+        #     BATCH_SIZE, TRAIN_ITERATIONS, time.time() - optim_time, loss/TRAIN_ITERATIONS))
 
         optim_time = time.time()
         loss = 0
@@ -273,7 +298,7 @@ def eval():
 
             if next_state is None:
                 break
-        print("Eval Duration: {}".format(t))
+        return t
 
 if __name__ == "__main__":
     main()
