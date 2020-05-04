@@ -3,6 +3,8 @@
 
 [Link to miniclip](https://www.miniclip.com/games/bug-on-a-wire/en/)
 
+### Overview
+Complete explanation of the project is available in DL_Project_Report.pdf
 
 ### environment.py
 Handles the interfacing with the flash game environment.
