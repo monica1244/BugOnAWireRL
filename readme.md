@@ -30,7 +30,7 @@ A hardcoded agent that just plays with right, left and always jumps after a poin
 6. Install all packages using `pip install -r requirements.txt`.
 7. Install pytorch using conda- `conda install pytorch torchvision cudatoolkit=10.2 -c pytorch`.
 
-### Contributors
+#### Contributors
 Nihal Singh @ https://github.com/nihal111<br>
 Arindum Roy @ https://github.com/AsliRoy<br>
 Roshan Pati @ https://github.com/roshanpati<br>
