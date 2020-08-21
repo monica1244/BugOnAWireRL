@@ -21,7 +21,7 @@ Just running `python environment.py` shows the frames as they are sampled.
 #### main.py
 A hardcoded agent that just plays with right, left and always jumps after a point.
 
-### Windows Setup
+#### Windows Setup
 1. Windows, because better frame rate.
 2. Use conda because pytorch support outside conda is poor.
 3. Init conda for powershell- `conda init powershell`.
