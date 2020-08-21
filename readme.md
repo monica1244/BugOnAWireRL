@@ -1,6 +1,6 @@
 ## Miniclip Game Interface for Reinforcement Learning
 ### Tested with a Deep-Q-Network on Bug On a Wire
-### Course project for CS 7643: Deep Learning (Prof. Zsolt Kira) @ Georgia Institute of Technology
+#### Course project for CS 7643: Deep Learning (Prof. Zsolt Kira) @ Georgia Institute of Technology
 
 ### Overview
 Over the course of this project, we developed a general purpose deep Reinforcement Learning agent setup, that can be trained to play a host of flash games. We tested our model on the popular miniclip game, Bug on a Wire. Our setup performs the requisite environment interfacing to handle the pre-processing pipeline from raw screenshot images extracted during gameplay as input. This way, our Deep-Q Network (DQN) based agent is able to train itself directly using sensory inputs, in our case, images. We test this by extending our environment+agent setup with minimal changes to play the game Flappy Bird.
