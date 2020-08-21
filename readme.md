@@ -1,5 +1,5 @@
 ## Miniclip Game Interface for Reinforcement Learning
-### Tested with a Deep-Q-Network on Bug On a Wire
+### Tested with a Deep-Q-Network based RL agent on Bug On a Wire
 #### Course project for CS 7643: Deep Learning (Prof. Zsolt Kira) @ Georgia Institute of Technology
 
 ### Overview
