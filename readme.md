@@ -3,7 +3,9 @@
 ### Course project for CS 7643: Deep Learning (Prof. Zsolt Kira) @ Georgia Institute of Technology
 
 ### Overview
+In the course of this project we developed a general purpose deep Reinforcement Learning agent setup, that can be trained to play a host of flash games. We tested our model on the popular miniclip game, Bug on a Wire. Our setup performs the requisite environment interfacing to handle the pre-processing pipeline from raw screenshot images extracted during gameplay as input. This way, our Deep-Q Network (DQN) based agent is able to train itself directly using sensory inputs, in our case, images. We test this by extending our environment+agent setup with minimal changes to play the game Flappy Bird.
 
+We explore two different strategies, namely DQN and DQfD, to train our agent. Initially, we applied an approach which uses an epsilon-greedy DQN based agent. DQN requires a huge training time to achieve good performance, so we explored DQfD, where the agent additionally learns from a set of human performed demonstrations, to quickly learn optimal moves. We perform feature engineering, to generate the state from the raw frames obtained from the flash game. We tested different reward assignments and state parameterizations to bring the model to convergence in a time-efficient fashion.
 
 A complete explanation of the project is available in DL_Project_Report.pdf in this repository.
 
@@ -19,7 +21,7 @@ Just running `python environment.py` shows the frames as they are sampled.
 #### main.py
 A hardcoded agent that just plays with right, left and always jumps after a point.
 
-### Setup for Windows
+### Windows Setup
 1. Windows, because better frame rate.
 2. Use conda because pytorch support outside conda is poor.
 3. Init conda for powershell- `conda init powershell`.
@@ -29,7 +31,7 @@ A hardcoded agent that just plays with right, left and always jumps after a poin
 7. Install pytorch using conda- `conda install pytorch torchvision cudatoolkit=10.2 -c pytorch`.
 
 ### Contributors
-Nihal Singh @ https://github.com/nihal111
-Arindum Roy @ https://github.com/AsliRoy
-Roshan Pati @ https://github.com/roshanpati
+Nihal Singh @ https://github.com/nihal111<br>
+Arindum Roy @ https://github.com/AsliRoy<br>
+Roshan Pati @ https://github.com/roshanpati<br>
 Monica Gupta @ https://github.com/monica1244
